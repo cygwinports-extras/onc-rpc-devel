@@ -1,0 +1,81 @@
+NAME="onc-rpc-devel"
+VERSION="2.19_20140816"
+RELEASE=1
+CATEGORY="Devel"
+SUMMARY="An ONC RPC development files"
+DESCRIPTION="This package contains rpcgen, source code generator for creating
+remote procedure call servers and clients from a protocol specification.
+Additionally it contains header files for several standard RPC services.
+This implementation is derived from the libc/sunrpc/ code in eglibc."
+OBSOLETES="rpcgen"
+HOMEPAGE="n/a"
+SRC_URI="${PN}-${PV}.tar.xz"
+
+MAN_FILE=rpcgen.1
+MAN_URL='svn://anonscm.debian.org/svn/pkg-glibc/glibc-package/trunk/debian/local/manpages'
+VER_FILE=version.h
+SRCFILES="rpc_scan.h    rpc_scan.c
+	  rpc_util.h    rpc_util.c
+	  rpc_parse.h   rpc_parse.c
+	  rpc_cout.c    rpc_hout.c  rpc_svcout.c  rpc_clntout.c  rpc_tblout.c
+	  rpc_sample.c  rpc_main.c
+	  proto.h       etc.rpc     rpcsvc"
+NISFILES="yp.x"
+SVNURL='svn://svn.eglibc.org/trunk/libc/'
+SVNDATE=20140816
+
+onc_rpc_download () {
+	mkdir -p "${T}/${PN}-${PV}"
+	cd "${T}/${PN}-${PV}"
+	rm -rf *
+
+	inform "Using SVN to get man pages from debian"
+	svn co --non-recursive -r "{${SVNDATE}}" "${MAN_URL}"
+
+	inform "Using SVN to get toplevel sourcecode from eglibc, part 1"
+	svn co --non-recursive -r "{${SVNDATE}}" "${SVNURL}" svn
+	inform "Using SVN to get sunrpc sourcecode from eglibc, part 2"
+	svn co -r "{${SVNDATE}}" "${SVNURL}/sunrpc" svn/sunrpc
+	inform "Using SVN to get NIS headers from eglibc, part 3"
+	svn co -r "{${SVNDATE}}" "${SVNURL}/nis/rpcsvc" svn/nis
+	inform "Using SVN to get translations from eglibc, part 4"
+	svn co -r "{${SVNDATE}}" "${SVNURL}/po" svn/po
+
+	inform "Extracting rpcgen files..."
+	for f in ${SRCFILES}
+	do
+		mv svn/sunrpc/$f .
+	done
+	for f in ${NISFILES}
+	do
+		mv svn/nis/$f rpcsvc/
+	done
+	mv svn/${VER_FILE} .
+	mv manpages/${MAN_FILE} .
+
+	inform "Preparing translation files..."
+	mkdir po
+	xgettext -k_ *.c -o po/rpcgen.pot
+	POFILES=`cd svn/po; ls *.po`
+	for f in ${POFILES}
+	do
+		msgmerge -o po/$f svn/po/$f po/rpcgen.pot
+	done
+
+	inform "Creating tarball"
+	rm -rf svn manpages
+	cd "${T}"
+	tar -cvJf "${top}/${PN}-${PV}.tar.xz" "${PN}-${PV}"
+}
+
+src_compile () {
+  	lndirs
+	cd ${B}
+	cygmake
+}
+
+src_install () {
+	cd ${B}
+	cyginstall
+	make_etc_defaults /etc/rpc
+}

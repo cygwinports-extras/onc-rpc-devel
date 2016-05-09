@@ -1,0 +1,118 @@
+--- origsrc/onc-rpc-devel-2.19_20140816/Makefile	1970-01-01 04:00:00.000000000 +0400
++++ src/onc-rpc-devel-2.19_20140816/Makefile	2014-08-18 13:17:29.048080400 +0500
+@@ -0,0 +1,70 @@
++DESTDIR=
++prefix=/usr
++sysconfdir=/etc
++bindir=$(prefix)/bin
++man1dir=$(prefix)/share/man/man1
++INSTALL=/usr/bin/install
++
++CC=gcc
++O=o
++EXEEXT=.exe
++LIBS = -ltirpc -lintl
++INCS = -I/usr/include/tirpc
++DEFS = -D_RPC_THREAD_SAFE_ -D_CROSS_RPCGEN_
++
++RPCGEN_SRCS = rpc_clntout.c rpc_cout.c rpc_hout.c rpc_main.c \
++	rpc_parse.c rpc_sample.c rpc_scan.c rpc_svcout.c rpc_tblout.c \
++	rpc_util.c
++RPCGEN_HDRS = proto.h rpc_parse.h rpc_scan.h rpc_util.h version.h
++RPCGEN_OBJS = $(RPCGEN_SRCS:%.c=%.$(O))
++
++PROGS = rpcgen$(EXEEXT)
++MAN1 = rpcgen.1
++
++HDR_SRCS      := bootparam_prot.x key_prot.x klm_prot.x mount.x nfs_prot.x nlm_prot.x \
++                 rex.x rquota.x rstat.x rusers.x sm_inter.x spray.x yp.x yppasswd.x
++EXTRA_HEADERS := bootparam.h
++
++HDR_FILES     := $(addprefix rpcsvc/, $(HDR_SRCS))
++EXTRA_FILES   := $(addprefix rpcsvc/, $(EXTRA_HEADERS))
++HEADERS       := $(HDR_FILES:%.x=%.h)
++
++PO_FILES     := $(wildcard po/*.po)
++TRANSLATIONS := $(PO_FILES:%.po=%.mo)
++LOCALES      := $(PO_FILES:po/%.po=%)
++
++all : $(PROGS) $(HEADERS) $(TRANSLATIONS)
++
++rpcgen$(EXEEXT): $(RPCGEN_OBJS)
++	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LIBS)
++
++%.$(O): %.c
++	$(CC) $(CFLAGS) $(DEFS) $(CPPFLAGS) $(INCS) -o $@ -c $<
++
++%.h: %.x rpcgen$(EXEEXT)
++	rm -f $@
++	./rpcgen -C -h $< -o $@
++
++%.mo: %.po
++	msgfmt -o $@ $<
++
++install: all
++	mkdir -p $(DESTDIR)$(bindir)
++	mkdir -p $(DESTDIR)$(man1dir)
++	mkdir -p $(DESTDIR)$(sysconfdir)
++	mkdir -p $(DESTDIR)$(prefix)/include/rpcsvc
++	$(INSTALL) -m 755 -s $(PROGS) $(DESTDIR)$(bindir)
++	$(INSTALL) -m 644 $(MAN1) $(DESTDIR)$(man1dir)
++	$(INSTALL) -m 644 etc.rpc $(DESTDIR)$(sysconfdir)/rpc
++	cp -vf $(HEADERS) $(EXTRA_FILES) $(HDR_FILES) $(DESTDIR)$(prefix)/include/rpcsvc/
++	for l in $(LOCALES); do \
++		mkdir -p $(DESTDIR)$(prefix)/share/locale/$$l/LC_MESSAGES; \
++		$(INSTALL) -m 644 -v po/$$l.mo $(DESTDIR)$(prefix)/share/locale/$$l/LC_MESSAGES/rpcgen.mo; \
++	done
++
++.PHONY: clean
++clean:
++	rm -f $(RPCGEN_OBJS)
++	rm -f $(PROGS)
++	rm -f $(HEADERS)
++	rm -f $(TRANSLATIONS)
+--- origsrc/onc-rpc-devel-2.19_20140816/proto.h	2014-08-16 19:46:31.000000000 +0500
++++ src/onc-rpc-devel-2.19_20140816/proto.h	2014-08-18 13:17:29.053080400 +0500
+@@ -62,4 +62,11 @@ void add_type(int len, const char *type)
+ #define _(X) (X)
+ #define textdomain(X) ((void) 0)
+ 
++#else
++
++#define _(X) (gettext (X))
++
+ #endif
++
++#define REPORT_BUGS_TO "cygwin@cygwin.com"
++#define PKGVERSION "(cygwin-special) "
+--- origsrc/onc-rpc-devel-2.19_20140816/rpc_main.c	2014-08-16 19:46:31.000000000 +0500
++++ src/onc-rpc-devel-2.19_20140816/rpc_main.c	2014-08-18 13:17:29.058080400 +0500
+@@ -51,12 +51,18 @@
+ #include "rpc_scan.h"
+ #include "proto.h"
+ 
+-#include "../version.h"
++static const char _libc_intl_domainname[] = "rpcgen";
++
++#include "version.h"
+ #define PACKAGE _libc_intl_domainname
+ 
+ #define EXTEND	1		/* alias for TRUE */
+ #define DONT_EXTEND	0	/* alias for FALSE */
+ 
++#ifdef __CYGWIN__
++#define stat64 stat
++#endif
++
+ struct commandline
+   {
+     int cflag;			/* xdr C routines */
+@@ -78,7 +84,7 @@ static const char *cmdname;
+ 
+ static const char *svcclosetime = "120";
+ static int cppDefined;	/* explicit path for C preprocessor */
+-static const char *CPP = "/lib/cpp";
++static const char *CPP = "/usr/bin/cpp.exe";
+ static const char CPPFLAGS[] = "-C";
+ static char *pathbuf;
+ static int cpp_pid;
